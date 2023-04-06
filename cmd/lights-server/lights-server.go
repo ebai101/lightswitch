@@ -39,20 +39,18 @@ func setPreset(preset string) {
 func reqHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
-		io.WriteString(w, "hello this is not implemented lmao\n")
+		io.WriteString(w, fmt.Sprintf("%v\n", state))
 	case "POST":
 		preset := r.URL.Query().Get("preset")
 		if preset != "" {
 			setPreset(preset)
 		}
-
 	default:
 		panic(fmt.Sprintf("got strange request method: %s", r.Method))
 	}
 }
 
 var pubHandler = func(client mqtt.Client, msg mqtt.Message) {
-	// handler
 	var statResult map[string]string
 	json.Unmarshal(msg.Payload(), &statResult)
 
