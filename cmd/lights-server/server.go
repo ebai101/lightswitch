@@ -64,7 +64,7 @@ var pubHandler = func(client mqtt.Client, msg mqtt.Message) {
 
 func main() {
 	mqtt.ERROR = log.New(os.Stdout, "", 0)
-	opts := mqtt.NewClientOptions().AddBroker("mqtt://192.168.1.105:1883")
+	opts := mqtt.NewClientOptions().AddBroker("mqtt://localhost:1883")
 	opts.SetClientID("lightserver")
 	opts.SetKeepAlive(2 * time.Second)
 	opts.SetDefaultPublishHandler(pubHandler)
