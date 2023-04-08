@@ -13,16 +13,22 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
-var topics = []string{"back", "left", "right", "bed"}
+type Presets map[string]map[string]string
+
+var presets Presets
 var state = map[string]string{"bed": "0,0,0,0,0", "left": "0,0,0,0,0", "right": "0,0,0,0,0", "back": "0,0,0,0,0"}
-var presets = map[string]map[string]string{
-	"off":  {"bed": "0,0,0,0,0", "left": "0,0,0,0,0", "right": "0,0,0,0,0", "back": "0,0,0,0,0"},
-	"day":  {"bed": "0,0,0,0,255", "left": "0,0,0,0,255", "right": "0,0,0,0,255", "back": "0,0,0,0,255"},
-	"bed":  {"bed": "100,0,0,0,50", "left": "0,0,0,0,0", "right": "0,0,0,0,0", "back": "0,0,0,0,0"},
-	"eve":  {"bed": "70,0,0,0,75", "left": "50,0,0,0,112", "right": "0,0,0,0,135", "back": "0,0,0,0,0"},
-	"nite": {"bed": "100,0,0,0,50", "left": "0,100,100,50,0", "right": "0,90,125,0,0", "back": "0,0,0,0,0"},
-}
 var client mqtt.Client
+
+func readPresetFile(presetFilePath string, presetData *Presets) {
+	file, err := os.Open(presetFilePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	fileBytes, _ := io.ReadAll(file)
+	json.Unmarshal(fileBytes, &presetData)
+}
 
 func setLight(lightName string, lightColor string) {
 	if token := client.Publish(fmt.Sprintf("light/cmnd/%s/color", lightName), 0, false, lightColor); token.Wait() && token.Error() != nil {
@@ -30,9 +36,9 @@ func setLight(lightName string, lightColor string) {
 	}
 }
 
-func setPreset(preset string) {
-	for _, topic := range topics {
-		setLight(topic, presets[preset][topic])
+func setPreset(preset map[string]string) {
+	for k, v := range preset {
+		setLight(k, v)
 	}
 }
 
@@ -41,10 +47,11 @@ func reqHandler(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		io.WriteString(w, fmt.Sprintf("%v\n", state))
 	case "POST":
-		preset := r.URL.Query().Get("preset")
-		if preset != "" {
+		presetName := r.URL.Query().Get("preset")
+		if preset, ok := presets[presetName]; ok {
 			setPreset(preset)
 		}
+
 	default:
 		panic(fmt.Sprintf("got strange request method: %s", r.Method))
 	}
@@ -61,6 +68,15 @@ var pubHandler = func(client mqtt.Client, msg mqtt.Message) {
 }
 
 func main() {
+	args := os.Args
+	var presetFilePath string
+	if len(args) < 2 {
+		log.Fatal("no presets provided, pass them as a cli arg")
+	} else {
+		presetFilePath = args[1]
+	}
+	readPresetFile(presetFilePath, &presets)
+
 	mqtt.ERROR = log.New(os.Stdout, "", 0)
 	opts := mqtt.NewClientOptions().AddBroker("mqtt://localhost:1883")
 	opts.SetClientID("lightserver")
@@ -81,4 +97,5 @@ func main() {
 
 	http.HandleFunc("/", reqHandler)
 	http.ListenAndServe(":3000", nil)
+
 }
